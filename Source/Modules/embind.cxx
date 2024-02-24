@@ -75,8 +75,9 @@ int EMBIND::top(Node *n) {
   Printf(f_cxx_wrapper, "%s", f_cxx_functions);
   Printf(f_cxx_wrapper, "}\n");
 
-  Dump(f_cxx_header, f_begin);
-  Dump(f_cxx_wrapper, f_begin);
+  Dump(f_cxx_header, f_runtime);
+  Dump(f_cxx_wrapper, f_runtime);
+  Dump(f_runtime, f_begin);
   Delete(f_runtime);
   Delete(f_begin);
   Delete(f_cxx_header);
