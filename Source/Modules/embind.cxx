@@ -208,6 +208,20 @@ int EMBIND::membervariableHandler(Node *n) {
 }
 
 int EMBIND::functionWrapper(Node *n) {
+  String *actioncode = emit_action(n);
+
+  bool containReturnType = Len(actioncode) > 10 && std::string(Char(actioncode)).substr(0, 10) == "result = (";
+  if (!containReturnType) {
+    actioncode = NewStringf("result = ()%s", NewString(std::string(Char(actioncode)).substr(9).c_str()));
+  }
+
+  String *funcName;
+  funcName = Split(actioncode, ')', 2);
+  funcName = Getitem(funcName, 1);
+  funcName = Split(funcName, '(', 1);
+  funcName = Getitem(funcName, 0);
+  // Printf(f_cxx_wrapper, "\n\n\n%s - %s\n", actioncode, funcName);
+
   ParmList *parms = Getattr(n, "parms");
   String *name = Getattr(n, "name");
   String *name2 = Getattr(n, "memberfunctionHandler:sym:name");
@@ -359,9 +373,9 @@ int EMBIND::functionWrapper(Node *n) {
 
     } else if (Len(staticName) != 0 && Strcmp(view, "destructorHandler") != 0) {
       if (isUsingSameName) {
-        Printf(f_cxx_wrapper, "    .class_function(\"%s\", emscripten::select_overload<%s(%s)%s>(&%s::%s))\n", staticName, returnType, types, constFunctionStr, className, staticName);
+        Printf(f_cxx_wrapper, "    .class_function(\"%s\", emscripten::select_overload<%s(%s)%s>(&%s))\n", staticName, returnType, types, constFunctionStr, funcName);
       } else {
-        Printf(f_cxx_wrapper, "    .class_function(\"%s\", &%s::%s)\n", staticName, className, staticName);
+        Printf(f_cxx_wrapper, "    .class_function(\"%s\", &%s)\n", staticName, funcName);
       }
     } else if (Len(name) != 0 && Strcmp(view, "destructorHandler") != 0) {
       if (Len(name2) != 0) {
@@ -372,9 +386,9 @@ int EMBIND::functionWrapper(Node *n) {
             Printf(f_cxx_wrapper, "    .function(\"%s\", emscripten::optional_override([](%s& self%s) {\n      return self.%s(%s);\n    }))\n", name, className, params, name, variables);
           }
         } else if (isUsingSameName) {
-          Printf(f_cxx_wrapper, "    .function(\"%s\", emscripten::select_overload<%s(%s)%s>(&%s::%s))\n", name, returnType, types, constFunctionStr, className, name);
+          Printf(f_cxx_wrapper, "    .function(\"%s\", emscripten::select_overload<%s(%s)%s>(&%s))\n", name, returnType, types, constFunctionStr, funcName);
         } else {
-          Printf(f_cxx_wrapper, "    .function(\"%s\", &%s::%s)\n", name, className, name);
+          Printf(f_cxx_wrapper, "    .function(\"%s\", &%s)\n", name, funcName);
         }
       } else {
         if (isUsingSameName) {
