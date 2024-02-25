@@ -5,6 +5,34 @@
 
 static const char *usage = (char *) "";
 
+int findStartOfParenthesis(std::string s) {
+  bool start = false;
+  int count = 0;
+  for (int i = s.length() - 1; i >= 0; i -= 1) {
+    if (!start && s[i] == ')') {
+      start = true;
+      count = 1;
+    } else if (start && s[i] == ')') {
+      count += 1;
+    } else if (start && s[i] == '(') {
+      count -= 1;
+      if (count == 0) {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+
+int findEndOfParenthesisOrBlank(std::string s) {
+  for (int i = s.length() - 1; i >= 0; i -= 1) {
+    if (s[i] == ')' || s[i] == ' ') {
+      return i;
+    }
+  }
+  return -1;
+}
+
 class EMBIND:public Language {
 public:
   File *f_begin;
@@ -209,19 +237,25 @@ int EMBIND::membervariableHandler(Node *n) {
 }
 
 int EMBIND::functionWrapper(Node *n) {
+  String   *bname   = Getattr(n, "sym:name");
+  SwigType *btype   = Getattr(n, "type");
+  ParmList *bparms  = Getattr(n, "parms");
+  String   *bparmstr= ParmList_str_defaultargs(bparms); // to string
+  String   *bfunc   = SwigType_str(btype, NewStringf("%s(%s)", bname, bparmstr));
+
+  String *wrap = Getattr(n, "wrap:code");
   String *actioncode = emit_action(n);
+  // Printf(f_cxx_wrapper, "\n\na - %s\n", wrap);
 
-  bool containReturnType = Len(actioncode) > 10 && std::string(Char(actioncode)).substr(0, 10) == "result = (";
-  if (!containReturnType) {
-    actioncode = NewStringf("result = ()%s", NewString(std::string(Char(actioncode)).substr(9).c_str()));
+  auto actioncodeString = std::string(Char(actioncode));
+  int i = findStartOfParenthesis(actioncodeString);
+  if (i > 0) {
+    actioncodeString = actioncodeString.substr(0, i);
   }
-
-  String *funcName;
-  funcName = Split(actioncode, ')', 2);
-  funcName = Getitem(funcName, 1);
-  funcName = Split(funcName, '(', 1);
-  funcName = Getitem(funcName, 0);
-  // Printf(f_cxx_wrapper, "\n\n\n%s - %s\n", actioncode, funcName);
+  i = findEndOfParenthesisOrBlank(actioncodeString);
+  if (i > 0) {
+    actioncodeString = actioncodeString.substr(i + 1);
+  }
 
   ParmList *parms = Getattr(n, "parms");
   String *name = Getattr(n, "name");
@@ -262,6 +296,13 @@ int EMBIND::functionWrapper(Node *n) {
     parent = parentNode(parent);
     className = Getattr(parent, "name");
   }
+
+  if (Len(className) != 0 && actioncodeString.substr(0, 2) == "->") {
+    actioncodeString = std::string(Char(className)) + "::" + actioncodeString.substr(2);
+  }
+
+  String *funcName = NewString(actioncodeString.c_str());
+  // Printf(f_cxx_wrapper, "\n\n%s\n", funcName);
 
   // Printf(f_cxx_wrapper, "\n\n\n%s - %s\n", className, parent);
   // Printf(f_cxx_wrapper, "%s\n", n);
