@@ -36,11 +36,13 @@ int findEndOfParenthesisOrBlank(std::string s) {
 class EMBIND:public Language {
 public:
   File *f_begin;
+  File *f_exports;
   File *f_runtime;
   File *f_cxx_header;
   File *f_cxx_wrapper;
   File *f_cxx_functions;
 
+  String *exports;
   String *module;
   virtual void main(int argc, char *argv[]);
   virtual int top(Node *n);
@@ -76,10 +78,17 @@ int EMBIND::top(Node *n) {
   module = Getattr(n, "name");
 
   String *cxx_filename = Getattr(n, "outfile");
+  String *cxx_exports_filename = NewString(cxx_filename);
+  Printf(cxx_exports_filename, ".exports.json");
 
   f_begin = NewFile(cxx_filename, "w", SWIG_output_files());
+  f_exports = NewFile(cxx_exports_filename, "w", SWIG_output_files());
   if (!f_begin) {
     Printf(stderr, "Unable to open %s for writing\n", cxx_filename);
+    Exit(EXIT_FAILURE);
+  }
+  if (!f_exports) {
+    Printf(stderr, "Unable to open %s for writing\n", cxx_exports_filename);
     Exit(EXIT_FAILURE);
   }
 
@@ -87,7 +96,9 @@ int EMBIND::top(Node *n) {
   f_cxx_header = NewString("");
   f_cxx_wrapper = NewString("");
   f_cxx_functions = NewString("");
+  exports = NewString("");
 
+  Printf(exports, "[");
   Printf(f_cxx_header, "#include <emscripten/bind.h>\n");
 
   Swig_register_filebyname("header", f_cxx_header);
@@ -103,6 +114,10 @@ int EMBIND::top(Node *n) {
   Printf(f_cxx_wrapper, "%s", f_cxx_functions);
   Printf(f_cxx_wrapper, "}\n");
 
+  Printf(exports, "]\n");
+  Replace(exports, ", ", "", DOH_REPLACE_FIRST);
+
+  Dump(exports, f_exports);
   Dump(f_cxx_header, f_runtime);
   Dump(f_cxx_wrapper, f_runtime);
   Dump(f_runtime, f_begin);
@@ -111,6 +126,8 @@ int EMBIND::top(Node *n) {
   Delete(f_cxx_header);
   Delete(f_cxx_wrapper);
   Delete(f_cxx_functions);
+  Delete(exports);
+  Delete(f_exports);
 
   return SWIG_OK;
 }
@@ -127,9 +144,12 @@ int EMBIND::classHandler(Node *n) {
   if (std::string(Char(classType)).substr(0, 12) == "std::vector<") {
     String *params = NewString(std::string(Char(classType)).substr(5).c_str());
     Printf(f_cxx_wrapper, "EMSCRIPTEN_BINDINGS(%s) {\n  emscripten::register_%s(\"%s\");\n}\n\n", name, params, name);
+    Printf(exports, ", \"%s\"", name);
+    
   } else if (std::string(Char(classType)).substr(0, 9) == "std::map<") {
     String *params = NewString(std::string(Char(classType)).substr(5).c_str());
     Printf(f_cxx_wrapper, "EMSCRIPTEN_BINDINGS(%s) {\n  emscripten::register_%s(\"%s\");\n}\n\n", name, params, name);
+    Printf(exports, ", \"%s\"", name);
   } else {
     if (isListener) {
       String *className = NewString(name);
@@ -209,6 +229,7 @@ int EMBIND::classHandler(Node *n) {
     }
 
     Printf(f_cxx_wrapper, "EMSCRIPTEN_BINDINGS(%s) {\n  emscripten::class_<%s%s>(\"%s\")\n", name, nsname, super, name);
+    Printf(exports, ", \"%s\"", name);
     if (Getattr(n, "feature:shared_ptr")) Printf(f_cxx_wrapper, "    .smart_ptr<std::shared_ptr<%s>>(\"%s\")\n", nsname, name);
     if (isListener) Printf(f_cxx_wrapper, "    .allow_subclass<%sWrapper, std::shared_ptr<%sWrapper>>(\"%sWrapper\", \"%sWrapperSharedPtr\")\n", name, name, name, name);
     Language::classHandler(n);
@@ -438,6 +459,7 @@ int EMBIND::functionWrapper(Node *n) {
         } else {
           Printf(f_cxx_functions, "    emscripten::function(\"%s\", &%s);\n", name, name);
         }
+        Printf(exports, ", \"%s\"", name);
       }
     }
   }
@@ -465,6 +487,7 @@ int EMBIND::enumDeclaration(Node *n) {
       String *name = Getattr(n, "name");
 
       Printf(f_cxx_wrapper, "EMSCRIPTEN_BINDINGS(%s) {\n  emscripten::enum_<%s>(\"%s\")\n", symname, name, symname);
+      Printf(exports, ", \"%s\"", symname);
 
       for (Node *c = firstChild(n); c; c = nextSibling(c)) {
         String *cName = Getattr(c, "name");
