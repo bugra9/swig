@@ -110,7 +110,7 @@ int EMBIND::top(Node *n) {
 
   Language::top(n);
 
-  Printf(f_cxx_wrapper, "EMSCRIPTEN_BINDINGS(Functions) {\n");
+  Printf(f_cxx_wrapper, "EMSCRIPTEN_BINDINGS(Functions_%s) {\n", module);
   Printf(f_cxx_wrapper, "%s", f_cxx_functions);
   Printf(f_cxx_wrapper, "}\n");
 
@@ -228,6 +228,8 @@ int EMBIND::classHandler(Node *n) {
       Printf(super, ", emscripten::base<%s>", Getattr(First(bases).item, "name"));
     }
 
+    Printf(f_cxx_functions, "    emscripten::register_vector<std::shared_ptr<%s>>(\"Vector%s\");\n", name, name);
+    Printf(exports, ", \"Vector%s\"", name);
     Printf(f_cxx_wrapper, "EMSCRIPTEN_BINDINGS(%s) {\n  emscripten::class_<%s%s>(\"%s\")\n", name, nsname, super, name);
     Printf(exports, ", \"%s\"", name);
     if (Getattr(n, "feature:shared_ptr")) Printf(f_cxx_wrapper, "    .smart_ptr<std::shared_ptr<%s>>(\"%s\")\n", nsname, name);
