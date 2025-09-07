@@ -437,12 +437,16 @@ int EMBIND::functionWrapper(Node *n) {
     if (Len(variableName) != 0) {
 
     } else if (Len(staticName) != 0 && Strcmp(view, "destructorHandler") != 0) {
+      bool isJSPI = strstr(Char(staticName), "_JSPI") != nullptr;
       if (isUsingSameName) {
         Printf(f_cxx_wrapper, "    .class_function(\"%s\", emscripten::select_overload<%s(%s)%s>(&%s))\n", staticName, returnType, types, constFunctionStr, funcName);
+      } else if (isJSPI) {
+        Printf(f_cxx_wrapper, "    .class_function(\"%s\", &%s, emscripten::async())\n", staticName, funcName);
       } else {
         Printf(f_cxx_wrapper, "    .class_function(\"%s\", &%s)\n", staticName, funcName);
       }
     } else if (Len(name) != 0 && Strcmp(view, "destructorHandler") != 0) {
+      bool isJSPI = strstr(Char(name), "_JSPI") != nullptr;
       if (Len(name2) != 0) {
         if (isListener) {
           if (Getattr(n, "abstract")) {
@@ -452,12 +456,16 @@ int EMBIND::functionWrapper(Node *n) {
           }
         } else if (isUsingSameName) {
           Printf(f_cxx_wrapper, "    .function(\"%s\", emscripten::select_overload<%s(%s)%s>(&%s))\n", name, returnType, types, constFunctionStr, funcName);
+        } else if (isJSPI) {
+          Printf(f_cxx_wrapper, "    .function(\"%s\", &%s, emscripten::async())\n", name, funcName);
         } else {
           Printf(f_cxx_wrapper, "    .function(\"%s\", &%s)\n", name, funcName);
         }
       } else {
         if (isUsingSameName) {
           Printf(f_cxx_functions, "    emscripten::function(\"%s\", emscripten::select_overload<%s(%s)%s>(&%s));\n", name, returnType, types, constFunctionStr, name);
+        } else if (isJSPI) {
+          Printf(f_cxx_functions, "    emscripten::function(\"%s\", &%s, emscripten::async());\n", name, name);
         } else {
           Printf(f_cxx_functions, "    emscripten::function(\"%s\", &%s);\n", name, name);
         }
